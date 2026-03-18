@@ -127,8 +127,8 @@ def migrate_history_json():
             conn.commit()
             print(f'[OK] Migrated {len(history_data)} entries from history.json to DB')
             
-            # Optional: rename instead of delete for safety
-            os.rename(history_file, history_file + '.bak')
+            # Use replace instead of rename to overwrite existing .bak on Windows
+            os.replace(history_file, history_file + '.bak')
         except Exception as e:
             print(f'[ERROR] History migration failed: {str(e)}')
 
@@ -675,6 +675,41 @@ def history_delete(entry_id):
         return jsonify({'success': True})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
+
+
+@app.route('/api/dashboard/export/<entry_id>')
+@login_required
+def dashboard_export(entry_id):
+    with sqlite3.connect(DB_FILE) as conn:
+        row = conn.execute('''
+            SELECT id, saved_at, month_label, date_range_raw,
+                   total_bw_pages, total_color_pages, total_billable_pages,
+                   total_revenue_czk, org_breakdown_json
+            FROM history WHERE id = ?
+        ''', (entry_id,)).fetchone()
+    
+    if not row:
+        return "Záznam nenalezen", 404
+    
+    entry = {
+        'id': row[0],
+        'saved_at': row[1],
+        'month_label': row[2],
+        'date_range_raw': row[3],
+        'total_bw_pages': row[4],
+        'total_color_pages': row[5],
+        'total_billable_pages': row[6],
+        'total_revenue_czk': row[7],
+        'org_breakdown': json.loads(row[8])
+    }
+    
+    filename = f"Summary_{entry['month_label'].replace(' ', '_')}_{entry['id']}.pdf"
+    filepath = os.path.join(PROCESSED_FOLDER, filename)
+    
+    from reports import generate_dashboard_pdf
+    generate_dashboard_pdf(entry, filepath)
+    
+    return send_file(filepath, as_attachment=True, download_name=filename)
 
 
 @app.route('/contracts/list')
