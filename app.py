@@ -30,7 +30,7 @@ DB_FILE = os.environ.get(
 
 
 def init_db():
-    """Create users table if it doesn't exist."""
+    """Create users, history and sessions tables if they don't exist."""
     with sqlite3.connect(DB_FILE) as conn:
         conn.execute('''
             CREATE TABLE IF NOT EXISTS users (
@@ -40,6 +40,34 @@ def init_db():
                 role          TEXT NOT NULL DEFAULT 'viewer',
                 is_active     INTEGER NOT NULL DEFAULT 1,
                 created_at    TEXT NOT NULL
+            )
+        ''')
+        conn.execute('''
+            CREATE TABLE IF NOT EXISTS history (
+                id                    TEXT PRIMARY KEY,
+                saved_at              TEXT NOT NULL,
+                month_label           TEXT NOT NULL,
+                date_range_raw        TEXT,
+                total_bw_pages        INTEGER,
+                total_color_pages     INTEGER,
+                total_billable_pages  INTEGER,
+                total_revenue_czk     REAL,
+                org_breakdown_json    TEXT
+            )
+        ''')
+        conn.execute('''
+            CREATE TABLE IF NOT EXISTS sessions (
+                id          TEXT PRIMARY KEY,
+                data_json   TEXT NOT NULL,
+                created_at  REAL NOT NULL
+            )
+        ''')
+        conn.execute('''
+            CREATE TABLE IF NOT EXISTS column_mappings (
+                id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                profile_name TEXT UNIQUE NOT NULL,
+                mapping_json TEXT NOT NULL,
+                created_at   TEXT NOT NULL
             )
         ''')
         conn.commit()
@@ -68,38 +96,77 @@ def bootstrap_admin():
                 pass  # Another worker already inserted the admin row; safe to ignore
 
 
+def migrate_history_json():
+    """One-time migration from history.json to history table."""
+    history_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'history.json')
+    if not os.path.exists(history_file):
+        return
+
+    with sqlite3.connect(DB_FILE) as conn:
+        # Only migrate if history table is empty
+        count = conn.execute('SELECT COUNT(*) FROM history').fetchone()[0]
+        if count > 0:
+            return
+
+        try:
+            with open(history_file, 'r', encoding='utf-8') as f:
+                history_data = json.load(f)
+            
+            for entry in history_data:
+                conn.execute('''
+                    INSERT INTO history (
+                        id, saved_at, month_label, date_range_raw,
+                        total_bw_pages, total_color_pages, total_billable_pages,
+                        total_revenue_czk, org_breakdown_json
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (
+                    entry['id'], entry['saved_at'], entry['month_label'], entry['date_range_raw'],
+                    entry['total_bw_pages'], entry['total_color_pages'], entry['total_billable_pages'],
+                    entry['total_revenue_czk'], json.dumps(entry['org_breakdown'], ensure_ascii=False)
+                ))
+            conn.commit()
+            print(f'[OK] Migrated {len(history_data)} entries from history.json to DB')
+            
+            # Optional: rename instead of delete for safety
+            os.rename(history_file, history_file + '.bak')
+        except Exception as e:
+            print(f'[ERROR] History migration failed: {str(e)}')
+
+
 # Run at module load (idempotent)
 init_db()
 bootstrap_admin()
+migrate_history_json()
 
 # Ensure upload directory exists
 UPLOAD_FOLDER = 'uploads'
 PROCESSED_FOLDER = 'processed'
 CONTRACTS_FILE = 'contracts.csv'
-HISTORY_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'history.json')
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(PROCESSED_FOLDER, exist_ok=True)
-
-# Store session data temporarily
-session_data_store = {}
 
 SESSION_MAX_AGE_HOURS = 24
 
 def cleanup_old_sessions():
     """Delete sessions older than SESSION_MAX_AGE_HOURS and their processed files."""
     cutoff = datetime.now().timestamp() - SESSION_MAX_AGE_HOURS * 3600
-    stale = [sid for sid, s in session_data_store.items()
-             if s['timestamp'].timestamp() < cutoff]
-    for sid in stale:
-        for suffix in ('_invoice_details.csv', '_invoice_format.csv', '_report.pdf'):
-            path = os.path.join(PROCESSED_FOLDER, sid + suffix)
-            try:
-                os.remove(path)
-            except OSError:
-                pass
-        del session_data_store[sid]
-    if stale:
-        print(f"[OK] Cleaned up {len(stale)} old session(s)")
+    
+    with sqlite3.connect(DB_FILE) as conn:
+        stale = conn.execute('SELECT id FROM sessions WHERE created_at < ?', (cutoff,)).fetchall()
+        stale_ids = [row[0] for row in stale]
+        
+        for sid in stale_ids:
+            for suffix in ('_invoice_details.csv', '_invoice_format.csv', '_report.pdf'):
+                path = os.path.join(PROCESSED_FOLDER, sid + suffix)
+                try:
+                    os.remove(path)
+                except OSError:
+                    pass
+        
+        if stale_ids:
+            conn.execute('DELETE FROM sessions WHERE created_at < ?', (cutoff,))
+            conn.commit()
+            print(f"[OK] Cleaned up {len(stale_ids)} old session(s) from DB")
 
 def login_required(f):
     @wraps(f)
@@ -148,18 +215,9 @@ def _month_label_from_range(date_range_str):
 
 
 def _save_to_history(session_id, summary, save_flag):
-    """Persist summary to history.json if save_flag is True."""
+    """Persist summary to history table in DB if save_flag is True."""
     if not save_flag:
         return
-
-    # Load existing history
-    history = []
-    if os.path.exists(HISTORY_FILE):
-        try:
-            with open(HISTORY_FILE, 'r', encoding='utf-8') as f:
-                history = json.load(f)
-        except Exception:
-            history = []
 
     # Pick date_range_raw from first customer detail
     date_range_raw = ''
@@ -197,22 +255,25 @@ def _save_to_history(session_id, summary, save_flag):
             'printer_count': printer_count,
         })
 
-    entry = {
-        'id': session_id,
-        'saved_at': datetime.now().strftime('%Y-%m-%dT%H:%M:%S'),
-        'month_label': month_label,
-        'date_range_raw': date_range_raw,
-        'total_bw_pages': total_bw,
-        'total_color_pages': total_color,
-        'total_billable_pages': total_billable,
-        'total_revenue_czk': round(total_revenue, 2),
-        'org_breakdown': org_breakdown,
-    }
-
-    history.append(entry)
-
-    with open(HISTORY_FILE, 'w', encoding='utf-8') as f:
-        json.dump(history, f, ensure_ascii=False, indent=2)
+    with sqlite3.connect(DB_FILE) as conn:
+        conn.execute('''
+            INSERT INTO history (
+                id, saved_at, month_label, date_range_raw,
+                total_bw_pages, total_color_pages, total_billable_pages,
+                total_revenue_czk, org_breakdown_json
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (
+            session_id,
+            datetime.now().strftime('%Y-%m-%dT%H:%M:%S'),
+            month_label,
+            date_range_raw,
+            total_bw,
+            total_color,
+            total_billable,
+            round(total_revenue, 2),
+            json.dumps(org_breakdown, ensure_ascii=False)
+        ))
+        conn.commit()
 
 
 @app.route('/login', methods=['GET', 'POST'])
@@ -266,6 +327,12 @@ def upload_files():
     except (ValueError, TypeError):
         customer_names = {}
 
+    # Optional column mapping
+    try:
+        column_mapping = json.loads(request.form.get('column_mapping', '{}'))
+    except (ValueError, TypeError):
+        column_mapping = {}
+
     all_invoice_data = []
     errors = []
     warnings = []
@@ -283,13 +350,28 @@ def upload_files():
                     errors.append(f"{filename}: {error}")
                     continue
 
-                missing = calculator.validate_columns(csv_data)
+                missing = calculator.validate_columns(csv_data, column_mapping)
                 if missing:
+                    # If this is the first file and no mapping was provided, 
+                    # we might want to ask for mapping immediately.
+                    # For simplicity, we only trigger mapping UI if it's the ONLY file 
+                    # or if the user explicitly wants to map.
+                    # But the requirement is to handle missing columns gracefully.
+                    if len(files) == 1 or not all_invoice_data:
+                        headers = list(csv_data[0].keys()) if csv_data else []
+                        return jsonify({
+                            'status': 'mapping_required',
+                            'missing': missing,
+                            'headers': headers,
+                            'filename': filename,
+                            'expected': calculator.EXPECTED_COLUMNS
+                        })
+                    
                     preview = ', '.join(missing[:3]) + (f' … (+{len(missing)-3})' if len(missing) > 3 else '')
                     warnings.append(f"{filename}: chybějící sloupce — {preview}")
 
                 override = customer_names.get(file.filename) or customer_names.get(filename)
-                invoice_data = calculator.calculate_billable_volumes(csv_data, filename, override)
+                invoice_data = calculator.calculate_billable_volumes(csv_data, filename, override, column_mapping)
                 all_invoice_data.extend(invoice_data)
                 processed_files.append(filename)
 
@@ -325,10 +407,12 @@ def upload_files():
 
     # Store data temporarily for filtering
     session_id = str(uuid.uuid4())[:8]
-    session_data_store[session_id] = {
-        'all_data': all_invoice_data,
-        'timestamp': datetime.now()
-    }
+    with sqlite3.connect(DB_FILE) as conn:
+        conn.execute(
+            'INSERT INTO sessions (id, data_json, created_at) VALUES (?, ?, ?)',
+            (session_id, json.dumps(all_invoice_data, ensure_ascii=False), datetime.now().timestamp())
+        )
+        conn.commit()
 
     # Return printer list for selection WITH CONTRACT INFO
     printer_list = []
@@ -402,10 +486,13 @@ def generate_report():
     selected_serials = data.get('selected_printers', [])
     save_to_history = data.get('save_to_history', False)
 
-    if session_id not in session_data_store:
+    with sqlite3.connect(DB_FILE) as conn:
+        row = conn.execute('SELECT data_json FROM sessions WHERE id = ?', (session_id,)).fetchone()
+    
+    if not row:
         return jsonify({'error': 'Session expired or invalid'})
 
-    all_data = session_data_store[session_id]['all_data']
+    all_data = json.loads(row[0])
 
     # Filter data based on selected serial numbers
     if selected_serials:
@@ -544,12 +631,26 @@ def dashboard():
 @login_required
 def dashboard_data():
     history = []
-    if os.path.exists(HISTORY_FILE):
-        try:
-            with open(HISTORY_FILE, 'r', encoding='utf-8') as f:
-                history = json.load(f)
-        except Exception:
-            history = []
+    with sqlite3.connect(DB_FILE) as conn:
+        rows = conn.execute('''
+            SELECT id, saved_at, month_label, date_range_raw,
+                   total_bw_pages, total_color_pages, total_billable_pages,
+                   total_revenue_czk, org_breakdown_json
+            FROM history ORDER BY saved_at DESC
+        ''').fetchall()
+    
+    for r in rows:
+        history.append({
+            'id': r[0],
+            'saved_at': r[1],
+            'month_label': r[2],
+            'date_range_raw': r[3],
+            'total_bw_pages': r[4],
+            'total_color_pages': r[5],
+            'total_billable_pages': r[6],
+            'total_revenue_czk': r[7],
+            'org_breakdown': json.loads(r[8])
+        })
 
     contracts = contract_manager.get_all_contracts()
     active = [c for c in contracts if c.get('status') == 'Active']
@@ -567,14 +668,10 @@ def dashboard_data():
 @app.route('/history/delete/<entry_id>', methods=['POST'])
 @admin_required
 def history_delete(entry_id):
-    if not os.path.exists(HISTORY_FILE):
-        return jsonify({'success': False})
     try:
-        with open(HISTORY_FILE, 'r', encoding='utf-8') as f:
-            history = json.load(f)
-        history = [e for e in history if e['id'] != entry_id]
-        with open(HISTORY_FILE, 'w', encoding='utf-8') as f:
-            json.dump(history, f, ensure_ascii=False, indent=2)
+        with sqlite3.connect(DB_FILE) as conn:
+            conn.execute('DELETE FROM history WHERE id = ?', (entry_id,))
+            conn.commit()
         return jsonify({'success': True})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
@@ -619,6 +716,57 @@ def contracts_delete(serial):
 def contracts_reload():
     contract_manager.reload()
     return jsonify({'success': True, 'count': len(contract_manager.contracts)})
+
+# ── Column Mappings ──────────────────────────────────────────────────────────
+
+@app.route('/api/mappings', methods=['GET'])
+@login_required
+def get_mappings():
+    with sqlite3.connect(DB_FILE) as conn:
+        rows = conn.execute(
+            'SELECT id, profile_name, mapping_json, created_at FROM column_mappings ORDER BY profile_name'
+        ).fetchall()
+    return jsonify({
+        'mappings': [
+            {'id': r[0], 'profile_name': r[1], 'mapping_json': json.loads(r[2]), 'created_at': r[3]}
+            for r in rows
+        ]
+    })
+
+@app.route('/api/mappings/save', methods=['POST'])
+@admin_required
+def save_mapping():
+    data = request.json
+    profile_name = data.get('profile_name', '').strip()
+    mapping_json = data.get('mapping')
+    
+    if not profile_name or not mapping_json:
+        return jsonify({'error': 'Name and mapping data are required'}), 400
+    
+    try:
+        with sqlite3.connect(DB_FILE) as conn:
+            conn.execute(
+                'INSERT INTO column_mappings (profile_name, mapping_json, created_at) '
+                'VALUES (?, ?, ?)',
+                (profile_name, json.dumps(mapping_json), datetime.now().strftime('%Y-%m-%dT%H:%M:%S'))
+            )
+            conn.commit()
+        return jsonify({'success': True})
+    except sqlite3.IntegrityError:
+        return jsonify({'error': f'Mapping profile "{profile_name}" already exists'}), 400
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/mappings/delete/<int:mapping_id>', methods=['POST'])
+@admin_required
+def delete_mapping(mapping_id):
+    try:
+        with sqlite3.connect(DB_FILE) as conn:
+            conn.execute('DELETE FROM column_mappings WHERE id = ?', (mapping_id,))
+            conn.commit()
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 # ── Admin user management ────────────────────────────────────────────────────
 

@@ -762,6 +762,64 @@
 <!-- ── TOAST CONTAINER ─────────────────────────────────────────────────── -->
 <div id="toastContainer" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2 pointer-events-none"></div>
 
+<!-- ── COLUMN MAPPING MODAL ────────────────────────────────────────── -->
+<div id="mappingModal" class="hidden fixed inset-0 z-[60] flex items-center justify-center" style="background:rgba(0,0,0,.75); backdrop-filter:blur(6px);">
+    <div class="glass rounded-2xl w-full max-w-3xl mx-4 overflow-hidden flex flex-col" style="max-height:85vh;">
+        <div class="px-6 py-4 flex items-center justify-between" style="border-bottom:1px solid var(--glass-bdr);">
+            <div>
+                <h3 class="font-extrabold text-white">Mapování sloupců CSV</h3>
+                <p class="text-xs" style="color:var(--text-lo);" id="mappingFilename">Soubor: —</p>
+            </div>
+            <button onclick="closeMappingModal()" style="color:var(--text-lo);" onmouseover="this.style.color='#fff'" onmouseout="this.style.color='var(--text-lo)'">
+                <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+        </div>
+        
+        <div class="p-6 overflow-y-auto flex-1">
+            <div class="notice notice-info mb-6">
+                <i data-lucide="info" class="w-4 h-4 flex-shrink-0 mt-0.5" style="color:#818cf8;"></i>
+                <p class="text-xs" style="color:rgba(165,180,252,.8);">
+                    Některé očekávané sloupce nebyly v souboru nalezeny. Spárujte je s odpovídajícími sloupci ve vašem CSV souboru.
+                </p>
+            </div>
+
+            <!-- Profile Selection -->
+            <div class="mb-6 p-4 rounded-xl" style="background:rgba(255,255,255,.03); border:1px solid var(--glass-bdr);">
+                <label class="block text-xs font-bold uppercase tracking-wider mb-2" style="color:var(--text-lo);">Použít uložený profil</label>
+                <div class="flex gap-2">
+                    <select id="mappingProfileSelect" class="glass-input flex-1" onchange="applyMappingProfile(this.value)">
+                        <option value="">-- Vyberte profil --</option>
+                    </select>
+                    <button onclick="deleteMappingProfile()" id="deleteProfileBtn" class="btn btn-ghost hidden" title="Smazat profil">
+                        <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                    </button>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4" id="mappingFieldsContainer">
+                <!-- Fields will be injected here -->
+            </div>
+        </div>
+
+        <div class="px-6 py-4 flex items-center justify-between" style="background:rgba(255,255,255,.02); border-top:1px solid var(--glass-bdr);">
+            <div class="flex items-center gap-2">
+                <input type="text" id="newProfileName" placeholder="Název nového profilu..." class="glass-input text-xs w-48">
+                <button onclick="saveMappingProfile()" class="btn btn-ghost btn-sm">
+                    <i data-lucide="save" class="w-3.5 h-3.5"></i>
+                    Uložit profil
+                </button>
+            </div>
+            <div class="flex gap-2">
+                <button onclick="closeMappingModal()" class="btn btn-ghost">Zrušit</button>
+                <button onclick="submitWithMapping()" class="btn btn-primary px-6">
+                    <i data-lucide="check" class="w-4 h-4"></i>
+                    Pokračovat
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- ── CONTRACT MODAL ────────────────────────────────────────────────── -->
 <div id="contractModal" class="hidden fixed inset-0 z-50 flex items-center justify-center" style="background:rgba(0,0,0,.6); backdrop-filter:blur(4px);">
     <div class="glass rounded-2xl w-full max-w-2xl mx-4 overflow-hidden" style="max-height:90vh; overflow-y:auto;">

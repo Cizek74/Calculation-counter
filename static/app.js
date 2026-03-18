@@ -251,8 +251,10 @@
         updateProcessBtn();
     }
 
-    // ── UPLOAD ────────────────────────────────────────────────────────────
-    processBtn.addEventListener('click', async () => {
+    // ── UPLOAD & PROCESS ──────────────────────────────────────────────────
+    let currentMappingData = null; // Store {missing, headers, filename}
+
+    async function processFiles() {
         if (selectedFiles.length === 0) return;
 
         const customerNames = {};
@@ -265,6 +267,11 @@
         const formData = new FormData();
         selectedFiles.forEach(file => formData.append('files', file));
         formData.append('customer_names', JSON.stringify(customerNames));
+        
+        // Add existing mapping if available
+        if (currentMappingData && currentMappingData.mapping) {
+            formData.append('column_mapping', JSON.stringify(currentMappingData.mapping));
+        }
 
         loadingDiv.classList.remove('hidden');
         loadingDiv.classList.add('flex');
@@ -276,6 +283,12 @@
         try {
             const response = await fetch('/upload', { method: 'POST', body: formData });
             const data = await response.json();
+
+            if (data.status === 'mapping_required') {
+                handleMappingRequired(data);
+                return;
+            }
+
             if (data.error) { showError(data.error); return; }
 
             sessionId   = data.session_id;
@@ -316,7 +329,178 @@
             loadingDiv.classList.remove('flex');
             setLoading(processBtn, false);
         }
-    });
+    }
+
+    processBtn.addEventListener('click', processFiles);
+
+    // ── COLUMN MAPPING ────────────────────────────────────────────────────
+    function handleMappingRequired(data) {
+        currentMappingData = {
+            missing: data.missing,
+            headers: data.headers,
+            filename: data.filename,
+            expected: data.expected,
+            mapping: {}
+        };
+
+        const filenameEl = document.getElementById('mappingFilename');
+        if (filenameEl) filenameEl.textContent = `Soubor: ${data.filename}`;
+        
+        const container = document.getElementById('mappingFieldsContainer');
+        if (!container) return;
+        
+        container.innerHTML = '';
+
+        // We show ALL expected fields, but highlight the missing ones
+        data.expected.forEach(field => {
+            const isMissing = data.missing.includes(field);
+            const fieldDiv = document.createElement('div');
+            fieldDiv.className = 'mb-1';
+            
+            fieldDiv.innerHTML = `
+                <label class="block text-[11px] font-bold mb-1 ${isMissing ? 'text-amber-400' : 'text-white/40'}">
+                    ${field} ${isMissing ? '<span class="text-[9px] uppercase ml-1 px-1 bg-amber-400/20 rounded">Chybí</span>' : ''}
+                </label>
+                <select class="mapping-select glass-input text-xs" data-field="${field}">
+                    <option value="">-- Přeskočit / Nula --</option>
+                    ${data.headers.map(h => `<option value="${h}" ${h === field ? 'selected' : ''}>${h}</option>`).join('')}
+                </select>
+            `;
+            container.appendChild(fieldDiv);
+        });
+
+        loadMappingProfiles();
+        const modal = document.getElementById('mappingModal');
+        if (modal) modal.classList.remove('hidden');
+        if (window.lucide) lucide.createIcons();
+    }
+
+    window.closeMappingModal = function() {
+        const modal = document.getElementById('mappingModal');
+        if (modal) modal.classList.add('hidden');
+    }
+
+    async function loadMappingProfiles() {
+        try {
+            const resp = await fetch('/api/mappings');
+            const data = await resp.json();
+            const select = document.getElementById('mappingProfileSelect');
+            if (!select) return;
+            
+            // Keep first option
+            select.innerHTML = '<option value="">-- Vyberte profil --</option>';
+            
+            data.mappings.forEach(m => {
+                const opt = document.createElement('option');
+                opt.value = m.id;
+                opt.textContent = m.profile_name;
+                opt.dataset.mapping = JSON.stringify(m.mapping_json);
+                select.appendChild(opt);
+            });
+        } catch (e) {
+            console.error('Failed to load mapping profiles', e);
+        }
+    }
+
+    window.applyMappingProfile = function(profileId) {
+        const select = document.getElementById('mappingProfileSelect');
+        const deleteBtn = document.getElementById('deleteProfileBtn');
+        
+        if (!profileId) {
+            if (deleteBtn) deleteBtn.classList.add('hidden');
+            return;
+        }
+        
+        if (deleteBtn) deleteBtn.classList.remove('hidden');
+        const option = select.querySelector(`option[value="${profileId}"]`);
+        if (!option) return;
+
+        const mapping = JSON.parse(option.dataset.mapping);
+        const selects = document.querySelectorAll('.mapping-select');
+        
+        selects.forEach(sel => {
+            const field = sel.dataset.field;
+            if (mapping[field]) {
+                sel.value = mapping[field];
+            } else {
+                sel.value = "";
+            }
+        });
+    }
+
+    window.saveMappingProfile = async function() {
+        const nameInput = document.getElementById('newProfileName');
+        if (!nameInput) return;
+        
+        const name = nameInput.value.trim();
+        if (!name) {
+            showToast('Zadejte název profilu', 'error');
+            return;
+        }
+
+        const mapping = {};
+        document.querySelectorAll('.mapping-select').forEach(sel => {
+            if (sel.value) {
+                mapping[sel.dataset.field] = sel.value;
+            }
+        });
+
+        try {
+            const resp = await fetch('/api/mappings/save', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ profile_name: name, mapping: mapping })
+            });
+            const data = await resp.json();
+            if (data.success) {
+                showToast('Profil uložen', 'success');
+                nameInput.value = '';
+                loadMappingProfiles();
+            } else {
+                showToast(data.error || 'Chyba při ukládání', 'error');
+            }
+        } catch (e) {
+            showToast('Chyba sítě', 'error');
+        }
+    }
+
+    window.deleteMappingProfile = async function() {
+        const select = document.getElementById('mappingProfileSelect');
+        if (!select) return;
+        
+        const profileId = select.value;
+        if (!profileId) return;
+
+        if (!confirm('Opravdu chcete smazat tento profil mapování?')) return;
+
+        try {
+            const resp = await fetch(`/api/mappings/delete/${profileId}`, { method: 'POST' });
+            const data = await resp.json();
+            if (data.success) {
+                showToast('Profil smazán', 'success');
+                loadMappingProfiles();
+            } else {
+                showToast(data.error || 'Chyba při mazání', 'error');
+            }
+        } catch (e) {
+            showToast('Chyba sítě', 'error');
+        }
+    }
+
+    window.submitWithMapping = function() {
+        const mapping = {};
+        document.querySelectorAll('.mapping-select').forEach(sel => {
+            if (sel.value) {
+                mapping[sel.dataset.field] = sel.value;
+            }
+        });
+
+        if (currentMappingData) {
+            currentMappingData.mapping = mapping;
+        }
+        window.closeMappingModal();
+        processFiles(); // Retry with mapping
+    }
 
     // ── PRINTER SELECTION TABLE ────────────────────────────────────────────
     function displayPrinterSelection(printers) {
