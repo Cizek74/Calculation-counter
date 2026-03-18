@@ -1,0 +1,705 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard — Kalkulačka tisků</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: { extend: { fontFamily: { sans: ['"Plus Jakarta Sans"', 'system-ui', 'sans-serif'] } } }
+        }
+    </script>
+
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+    <style>
+        :root {
+            --accent:      #6366f1;
+            --accent-2:    #8b5cf6;
+            --accent-glow: rgba(99,102,241,0.35);
+            --glass-bg:    rgba(255,255,255,0.04);
+            --glass-bdr:   rgba(255,255,255,0.08);
+            --text-hi:     rgba(255,255,255,0.90);
+            --text-md:     rgba(255,255,255,0.55);
+            --text-lo:     rgba(255,255,255,0.25);
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+            background: #080b1a;
+            background-image:
+                radial-gradient(ellipse 60% 50% at 15% 0%,  rgba(99,102,241,.18) 0%, transparent 60%),
+                radial-gradient(ellipse 50% 40% at 85% 100%, rgba(139,92,246,.14) 0%, transparent 60%);
+            color: var(--text-hi);
+            min-height: 100vh;
+        }
+
+        ::-webkit-scrollbar { width: 4px; height: 4px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(99,102,241,.4); border-radius: 9999px; }
+
+        /* ── TOP BAR ── */
+        #app-topbar {
+            height: 56px;
+            background: rgba(255,255,255,.03);
+            border-bottom: 1px solid rgba(255,255,255,.07);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 24px;
+            position: sticky; top: 0; z-index: 40;
+            backdrop-filter: blur(20px);
+        }
+
+        /* ── GLASS CARD ── */
+        .glass {
+            background: var(--glass-bg);
+            border: 1px solid var(--glass-bdr);
+            border-radius: 16px;
+            backdrop-filter: blur(24px);
+        }
+
+        /* ── STAT CARDS ── */
+        .stat-card {
+            border-radius: 16px;
+            padding: 20px;
+            border: 1px solid rgba(255,255,255,.07);
+            position: relative;
+            overflow: hidden;
+        }
+        .sc-violet { background: linear-gradient(135deg, rgba(99,102,241,.18) 0%, rgba(139,92,246,.08) 100%); border-color: rgba(99,102,241,.22); }
+        .sc-blue   { background: linear-gradient(135deg, rgba(59,130,246,.18) 0%, rgba(99,102,241,.08) 100%); border-color: rgba(59,130,246,.22); }
+        .sc-green  { background: linear-gradient(135deg, rgba(16,185,129,.18) 0%, rgba(52,211,153,.08) 100%); border-color: rgba(16,185,129,.22); }
+        .sc-amber  { background: linear-gradient(135deg, rgba(245,158,11,.18) 0%, rgba(251,191,36,.08) 100%); border-color: rgba(245,158,11,.22); }
+
+        /* ── BUTTONS ── */
+        .btn {
+            display: inline-flex; align-items: center; gap: 6px;
+            font-family: inherit; font-weight: 600; font-size: 13px;
+            border-radius: 10px; border: 1px solid transparent;
+            padding: 7px 14px; cursor: pointer; transition: all .18s;
+            text-decoration: none;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, var(--accent), var(--accent-2));
+            color: #fff;
+            box-shadow: 0 0 18px var(--accent-glow);
+        }
+        .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 4px 24px var(--accent-glow); }
+        .btn-secondary {
+            background: rgba(255,255,255,.06);
+            color: var(--text-md);
+            border-color: var(--glass-bdr);
+        }
+        .btn-secondary:hover { background: rgba(255,255,255,.1); color: var(--text-hi); }
+        .btn-danger {
+            background: rgba(239,68,68,.1);
+            color: #f87171;
+            border-color: rgba(239,68,68,.2);
+        }
+        .btn-danger:hover { background: rgba(239,68,68,.2); }
+
+        /* ── TABLE ── */
+        .data-table { width: 100%; border-collapse: collapse; }
+        .data-table th {
+            text-align: left; font-size: 11px; font-weight: 700;
+            text-transform: uppercase; letter-spacing: .05em;
+            color: var(--text-lo); padding: 10px 12px;
+            border-bottom: 1px solid rgba(255,255,255,.06);
+        }
+        .data-table td {
+            padding: 10px 12px; font-size: 13px;
+            border-bottom: 1px solid rgba(255,255,255,.04);
+            color: var(--text-md);
+        }
+        .data-table tr:last-child td { border-bottom: none; }
+        .data-table tr:hover td { background: rgba(255,255,255,.02); }
+
+        /* ── CHART CONTAINER ── */
+        .chart-wrap {
+            position: relative;
+            height: 260px;
+        }
+
+        /* ── EMPTY STATE ── */
+        .empty-state {
+            display: flex; flex-direction: column; align-items: center;
+            gap: 12px; padding: 48px 24px; text-align: center;
+        }
+
+        /* ── TOAST ── */
+        @keyframes toastIn {
+            from { transform: translateY(8px); opacity: 0; }
+            to   { transform: translateY(0);   opacity: 1; }
+        }
+        .toast {
+            position: fixed; bottom: 24px; right: 24px; z-index: 9999;
+            color: #fff; padding: 12px 18px; border-radius: 12px;
+            font-size: 13px; font-weight: 600; max-width: 380px;
+            backdrop-filter: blur(12px); box-shadow: 0 4px 20px rgba(0,0,0,.4);
+            animation: toastIn .2s ease;
+            transition: opacity .3s;
+        }
+        .toast-error   { background: rgba(239,68,68,.92); border: 1px solid rgba(239,68,68,.3); }
+        .toast-success { background: rgba(16,185,129,.92); border: 1px solid rgba(16,185,129,.3); }
+
+        /* ── LOGO ICON ── */
+        .logo-icon {
+            width: 28px; height: 28px;
+            border-radius: 8px;
+            background: linear-gradient(135deg, var(--accent), var(--accent-2));
+            box-shadow: 0 0 14px var(--accent-glow);
+            display: flex; align-items: center; justify-content: center;
+            flex-shrink: 0;
+        }
+
+        /* ── NAV PROGRESS BAR ─────────────────────────── */
+        #nav-bar {
+          position: fixed; top: 0; left: 0; height: 3px; width: 0;
+          background: linear-gradient(90deg, #6366f1, #8b5cf6);
+          box-shadow: 0 0 8px #6366f188;
+          transition: width .4s cubic-bezier(.4,0,.2,1);
+          pointer-events: none; z-index: 9999;
+        }
+        /* ── BUTTON LOADING DOTS ──────────────────────── */
+        @keyframes dotPulse {
+          0%, 80%, 100% { transform: scale(.55); opacity: .4; }
+          40%            { transform: scale(1);   opacity: 1; }
+        }
+        .btn-dots { display: flex; gap: 6px; align-items: center; justify-content: center; padding: 4px 0; }
+        .btn-dot  { width: 7px; height: 7px; border-radius: 50%; background: rgba(255,255,255,0.85); animation: dotPulse 1.2s ease-in-out infinite; }
+        .btn-dot:nth-child(2) { animation-delay: .2s; }
+        .btn-dot:nth-child(3) { animation-delay: .4s; }
+    </style>
+</head>
+<body>
+<div id="nav-bar"></div>
+
+<!-- ── TOP BAR ────────────────────────────────────────────────────────── -->
+<header id="app-topbar">
+    <div class="flex items-center gap-3">
+        <div class="logo-icon">
+            <i data-lucide="printer" style="width:14px; height:14px; color:#fff;"></i>
+        </div>
+        <div class="flex items-center gap-2 text-sm" style="color:var(--text-lo);">
+            <span>Kalkulačka tisků</span>
+            <i data-lucide="chevron-right" class="w-3.5 h-3.5" style="color:rgba(255,255,255,.15);"></i>
+            <span class="font-bold" style="color:var(--text-hi);">Dashboard</span>
+        </div>
+    </div>
+    <div class="flex items-center gap-3">
+        <a href="/" class="btn btn-secondary text-xs">
+            <i data-lucide="arrow-left" class="w-3.5 h-3.5"></i>
+            Zpět do aplikace
+        </a>
+        {% if current_role == 'admin' %}
+        <a href="/admin/users" class="btn btn-secondary text-xs">
+            <i data-lucide="users" class="w-3.5 h-3.5"></i>
+            Uživatelé
+        </a>
+        {% endif %}
+        <a href="/logout"
+           class="flex items-center gap-1.5 text-xs font-semibold transition-colors"
+           style="color:var(--text-lo);"
+           onmouseover="this.style.color='#f87171'" onmouseout="this.style.color='var(--text-lo)'"
+           title="Odhlásit se">
+            <i data-lucide="log-out" class="w-3.5 h-3.5"></i>
+            Odhlásit
+        </a>
+    </div>
+</header>
+
+<!-- ── MAIN CONTENT ───────────────────────────────────────────────────── -->
+<main class="max-w-7xl mx-auto px-6 py-8">
+
+    <!-- Page heading -->
+    <div class="mb-8">
+        <h1 class="text-2xl font-extrabold mb-1" style="color:#fff;">Přehled výkonu</h1>
+        <p class="text-sm" style="color:var(--text-lo);">Historická data tisků, tržby a stav smluv</p>
+    </div>
+
+    <!-- ── STAT CARDS ──────────────────────────────────────────────── -->
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8" id="statCards">
+        <div class="stat-card sc-violet">
+            <div class="text-xs font-semibold uppercase tracking-wide mb-2" style="color:rgba(165,180,252,.6);">Tržby (poslední měsíc)</div>
+            <div class="text-3xl font-extrabold text-white" id="sc-revenue">—</div>
+            <div class="text-xs mt-1" style="color:var(--text-lo);">Kč</div>
+        </div>
+        <div class="stat-card sc-blue">
+            <div class="text-xs font-semibold uppercase tracking-wide mb-2" style="color:rgba(147,197,253,.6);">Stránky (poslední měsíc)</div>
+            <div class="text-3xl font-extrabold text-white" id="sc-pages">—</div>
+            <div class="text-xs mt-1" style="color:var(--text-lo);">celkem účtovaných</div>
+        </div>
+        <div class="stat-card sc-green">
+            <div class="text-xs font-semibold uppercase tracking-wide mb-2" style="color:rgba(110,231,183,.6);">Aktivní smlouvy</div>
+            <div class="text-3xl font-extrabold text-white" id="sc-active">—</div>
+            <div class="text-xs mt-1" style="color:var(--text-lo);">smluv</div>
+        </div>
+        <div class="stat-card sc-amber">
+            <div class="text-xs font-semibold uppercase tracking-wide mb-2" style="color:rgba(253,230,138,.6);">Blíží se konec smlouvy</div>
+            <div class="text-3xl font-extrabold text-white" id="sc-expiring">—</div>
+            <div class="text-xs mt-1" style="color:var(--text-lo);">smluv (≤ 3 měs.)</div>
+        </div>
+    </div>
+
+    <!-- ── CHARTS ROW ──────────────────────────────────────────────── -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+
+        <!-- Revenue line chart -->
+        <div class="glass p-5">
+            <div class="flex items-center justify-between mb-4">
+                <div>
+                    <h2 class="text-sm font-bold" style="color:var(--text-hi);">Měsíční tržby celkem</h2>
+                    <p class="text-xs mt-0.5" style="color:var(--text-lo);">Kč / měsíc</p>
+                </div>
+                <i data-lucide="trending-up" class="w-4 h-4" style="color:rgba(99,102,241,.6);"></i>
+            </div>
+            <div class="chart-wrap">
+                <canvas id="chartRevenue"></canvas>
+            </div>
+        </div>
+
+        <!-- Pages stacked bar chart -->
+        <div class="glass p-5">
+            <div class="flex items-center justify-between mb-4">
+                <div>
+                    <h2 class="text-sm font-bold" style="color:var(--text-hi);">Objem stránek (ČB vs Barevné)</h2>
+                    <p class="text-xs mt-0.5" style="color:var(--text-lo);">počet stránek / měsíc</p>
+                </div>
+                <i data-lucide="layers" class="w-4 h-4" style="color:rgba(99,102,241,.6);"></i>
+            </div>
+            <div class="chart-wrap">
+                <canvas id="chartPages"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Revenue by customer stacked bar (full width) -->
+    <div class="glass p-5 mb-8">
+        <div class="flex items-center justify-between mb-4">
+            <div>
+                <h2 class="text-sm font-bold" style="color:var(--text-hi);">Tržby podle zákazníka</h2>
+                <p class="text-xs mt-0.5" style="color:var(--text-lo);">Kč / měsíc / zákazník</p>
+            </div>
+            <i data-lucide="bar-chart-2" class="w-4 h-4" style="color:rgba(99,102,241,.6);"></i>
+        </div>
+        <div style="position:relative; height:300px;">
+            <canvas id="chartCustomers"></canvas>
+        </div>
+    </div>
+
+    <!-- ── HISTORY TABLE ───────────────────────────────────────────── -->
+    <div class="glass overflow-hidden">
+        <div class="flex items-center justify-between px-5 py-4" style="border-bottom:1px solid var(--glass-bdr);">
+            <h2 class="text-sm font-bold" style="color:var(--text-hi);">Historie výkazů</h2>
+            <span class="text-xs px-2.5 py-1 rounded-full" style="background:rgba(99,102,241,.1); color:#a5b4fc; border:1px solid rgba(99,102,241,.2);" id="historyCount">0 záznamů</span>
+        </div>
+
+        <!-- Empty state -->
+        <div id="historyEmpty" class="empty-state hidden">
+            <i data-lucide="inbox" class="w-10 h-10" style="color:var(--text-lo);"></i>
+            <p class="text-sm" style="color:var(--text-lo);">Žádné uložené výkazy.<br>Vygenerujte sestavu a zaškrtněte <em>Uložit výsledky do dashboardu</em>.</p>
+        </div>
+
+        <!-- Table -->
+        <div class="overflow-x-auto" id="historyTableWrap">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Měsíc</th>
+                        <th>Zákazníci</th>
+                        <th class="text-right">Tiskárny</th>
+                        <th class="text-right">ČB stránky</th>
+                        <th class="text-right">Barevné stránky</th>
+                        <th class="text-right">Tržby (Kč)</th>
+                        <th>Uloženo</th>
+                        <th>Soubory</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody id="historyTableBody"></tbody>
+            </table>
+        </div>
+    </div>
+
+</main>
+
+<!-- ── DELETE CONFIRM MODAL ───────────────────────────────────────────── -->
+<div id="deleteModal" class="hidden fixed inset-0 z-50 flex items-center justify-center" style="background:rgba(0,0,0,.6); backdrop-filter:blur(4px);">
+    <div class="glass p-6 rounded-2xl w-full max-w-sm mx-4">
+        <div class="flex items-center gap-3 mb-4">
+            <div class="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style="background:rgba(239,68,68,.15);">
+                <i data-lucide="trash-2" class="w-4 h-4" style="color:#f87171;"></i>
+            </div>
+            <h3 class="font-bold" style="color:var(--text-hi);">Smazat záznam?</h3>
+        </div>
+        <p class="text-sm mb-5" style="color:var(--text-md);">Tento záznam bude trvale odstraněn z dashboardu. Tato akce je nevratná.</p>
+        <div class="flex gap-2 justify-end">
+            <button onclick="closeDeleteModal()" class="btn btn-secondary text-sm">Zrušit</button>
+            <button id="dashConfirmDeleteBtn" onclick="confirmDelete()" class="btn btn-danger text-sm">Smazat</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    function setLoading(btn, isLoading) {
+        if (!btn) return;
+        if (isLoading) {
+            btn.dataset.originalHtml = btn.innerHTML;
+            btn.innerHTML = '<div class="btn-dots"><div class="btn-dot"></div><div class="btn-dot"></div><div class="btn-dot"></div></div>';
+            btn.disabled = true;
+        } else {
+            btn.innerHTML = btn.dataset.originalHtml ?? btn.innerHTML;
+            btn.disabled = false;
+        }
+    }
+
+    function startNavBar(e) {
+        const bar = document.getElementById('nav-bar');
+        if (!bar) return;
+        e.preventDefault();
+        const href = e.currentTarget.getAttribute('href');
+        bar.style.width = '85%';
+        setTimeout(() => { window.location.href = href; }, 150);
+    }
+
+    let historyData = [];
+    let pendingDeleteId = null;
+    let charts = {};
+
+    const CUSTOMER_COLORS = [
+        'rgba(99,102,241,.8)',   // indigo
+        'rgba(16,185,129,.8)',   // green
+        'rgba(245,158,11,.8)',   // amber
+        'rgba(239,68,68,.8)',    // red
+        'rgba(59,130,246,.8)',   // blue
+        'rgba(139,92,246,.8)',   // violet
+        'rgba(236,72,153,.8)',   // pink
+        'rgba(20,184,166,.8)',   // teal
+        'rgba(249,115,22,.8)',   // orange
+        'rgba(132,204,22,.8)',   // lime
+    ];
+
+    const CHART_DEFAULTS = {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: {
+                labels: {
+                    color: 'rgba(255,255,255,0.55)',
+                    font: { family: "'Plus Jakarta Sans', system-ui", size: 11 },
+                    boxWidth: 10, boxHeight: 10, padding: 14,
+                }
+            },
+            tooltip: {
+                backgroundColor: 'rgba(8,11,26,0.95)',
+                borderColor: 'rgba(255,255,255,0.1)',
+                borderWidth: 1,
+                titleColor: 'rgba(255,255,255,0.9)',
+                bodyColor: 'rgba(255,255,255,0.6)',
+                padding: 10,
+            }
+        },
+        scales: {
+            x: {
+                ticks: { color: 'rgba(255,255,255,0.35)', font: { size: 11 } },
+                grid:  { color: 'rgba(255,255,255,0.04)' },
+            },
+            y: {
+                ticks: { color: 'rgba(255,255,255,0.35)', font: { size: 11 } },
+                grid:  { color: 'rgba(255,255,255,0.06)' },
+            }
+        }
+    };
+
+    async function loadData() {
+        try {
+            const res = await fetch('/api/dashboard/data');
+            const data = await res.json();
+            historyData = data.history || [];
+            const stats = data.contract_stats || {};
+
+            // Stat cards
+            if (historyData.length > 0) {
+                const last = historyData[historyData.length - 1];
+                document.getElementById('sc-revenue').textContent = last.total_revenue_czk.toLocaleString('cs-CZ', {minimumFractionDigits: 0, maximumFractionDigits: 0});
+                document.getElementById('sc-pages').textContent   = last.total_billable_pages.toLocaleString('cs-CZ');
+            } else {
+                document.getElementById('sc-revenue').textContent = '0';
+                document.getElementById('sc-pages').textContent   = '0';
+            }
+            document.getElementById('sc-active').textContent   = stats.total_active ?? '—';
+            document.getElementById('sc-expiring').textContent = stats.expiring_soon ?? '—';
+
+            renderCharts();
+            renderHistoryTable();
+        } catch (e) {
+            console.error('Chyba při načítání dat dashboardu:', e);
+        }
+    }
+
+    function renderCharts() {
+        const labels = historyData.map(e => e.month_label);
+
+        // ── Chart 1: Monthly revenue line ──────────────────────────────
+        const revenueData = historyData.map(e => e.total_revenue_czk);
+        if (charts.revenue) charts.revenue.destroy();
+        charts.revenue = new Chart(document.getElementById('chartRevenue'), {
+            type: 'line',
+            data: {
+                labels,
+                datasets: [{
+                    label: 'Tržby (Kč)',
+                    data: revenueData,
+                    borderColor: '#6366f1',
+                    backgroundColor: 'rgba(99,102,241,0.12)',
+                    borderWidth: 2,
+                    pointBackgroundColor: '#6366f1',
+                    pointRadius: 4,
+                    fill: true,
+                    tension: 0.35,
+                }]
+            },
+            options: {
+                ...CHART_DEFAULTS,
+                plugins: {
+                    ...CHART_DEFAULTS.plugins,
+                    legend: { display: false },
+                }
+            }
+        });
+
+        // ── Chart 2: Pages BW vs Color stacked bar ─────────────────────
+        if (charts.pages) charts.pages.destroy();
+        charts.pages = new Chart(document.getElementById('chartPages'), {
+            type: 'bar',
+            data: {
+                labels,
+                datasets: [
+                    {
+                        label: 'ČB stránky',
+                        data: historyData.map(e => e.total_bw_pages),
+                        backgroundColor: 'rgba(99,102,241,0.7)',
+                        borderRadius: 4,
+                        stack: 'pages',
+                    },
+                    {
+                        label: 'Barevné stránky',
+                        data: historyData.map(e => e.total_color_pages),
+                        backgroundColor: 'rgba(245,158,11,0.7)',
+                        borderRadius: 4,
+                        stack: 'pages',
+                    }
+                ]
+            },
+            options: {
+                ...CHART_DEFAULTS,
+                scales: {
+                    ...CHART_DEFAULTS.scales,
+                    x: { ...CHART_DEFAULTS.scales.x, stacked: true },
+                    y: { ...CHART_DEFAULTS.scales.y, stacked: true },
+                }
+            }
+        });
+
+        // ── Chart 3: Revenue by customer stacked bar ───────────────────
+        // Collect all unique customers across history
+        const customerSet = new Set();
+        historyData.forEach(e => (e.org_breakdown || []).forEach(o => customerSet.add(o.customer)));
+        const customers = Array.from(customerSet);
+
+        const customerDatasets = customers.map((cust, idx) => ({
+            label: cust,
+            data: historyData.map(e => {
+                const match = (e.org_breakdown || []).find(o => o.customer === cust);
+                return match ? match.revenue_czk : 0;
+            }),
+            backgroundColor: CUSTOMER_COLORS[idx % CUSTOMER_COLORS.length],
+            borderRadius: 4,
+            stack: 'revenue',
+        }));
+
+        if (charts.customers) charts.customers.destroy();
+        charts.customers = new Chart(document.getElementById('chartCustomers'), {
+            type: 'bar',
+            data: { labels, datasets: customerDatasets },
+            options: {
+                ...CHART_DEFAULTS,
+                scales: {
+                    ...CHART_DEFAULTS.scales,
+                    x: { ...CHART_DEFAULTS.scales.x, stacked: true },
+                    y: { ...CHART_DEFAULTS.scales.y, stacked: true },
+                }
+            }
+        });
+    }
+
+    function renderHistoryTable() {
+        const tbody = document.getElementById('historyTableBody');
+        const empty = document.getElementById('historyEmpty');
+        const wrap  = document.getElementById('historyTableWrap');
+        const count = document.getElementById('historyCount');
+
+        count.textContent = `${historyData.length} záznam${historyData.length === 1 ? '' : historyData.length < 5 ? 'y' : 'ů'}`;
+
+        if (historyData.length === 0) {
+            empty.classList.remove('hidden');
+            wrap.classList.add('hidden');
+            return;
+        }
+        empty.classList.add('hidden');
+        wrap.classList.remove('hidden');
+
+        tbody.innerHTML = '';
+        // Show newest first
+        const sorted = [...historyData].reverse();
+        sorted.forEach(entry => {
+            const customers = (entry.org_breakdown || []).map(o => o.customer).join(', ') || '—';
+            const printerCount = (entry.org_breakdown || []).reduce((sum, o) => sum + (o.printer_count || 0), 0);
+            const savedAt = entry.saved_at ? entry.saved_at.replace('T', ' ') : '—';
+
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td class="font-semibold" style="color:var(--text-hi);">${entry.month_label || '—'}</td>
+                <td style="max-width:260px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${customers}">${customers}</td>
+                <td class="text-right">${printerCount}</td>
+                <td class="text-right">${(entry.total_bw_pages || 0).toLocaleString('cs-CZ')}</td>
+                <td class="text-right">${(entry.total_color_pages || 0).toLocaleString('cs-CZ')}</td>
+                <td class="text-right font-semibold" style="color:#4ade80;">${(entry.total_revenue_czk || 0).toLocaleString('cs-CZ', {minimumFractionDigits: 2, maximumFractionDigits: 2})} Kč</td>
+                <td class="text-xs" style="color:var(--text-lo);">${savedAt}</td>
+                <td>
+                    <div class="flex items-center gap-1">
+                        <button onclick="downloadReport(this,'${entry.id}','pdf')"
+                                class="btn btn-secondary" style="padding:4px 8px; font-size:11px;" title="Stáhnout PDF sestavu">
+                            <i data-lucide="file-text" class="w-3 h-3"></i>
+                        </button>
+                        <button onclick="downloadReport(this,'${entry.id}','details')"
+                                class="btn btn-secondary" style="padding:4px 8px; font-size:11px;" title="Detail tiskáren (CSV)">
+                            <i data-lucide="table-2" class="w-3 h-3"></i>
+                        </button>
+                        <button onclick="downloadReport(this,'${entry.id}','invoice')"
+                                class="btn btn-secondary" style="padding:4px 8px; font-size:11px;" title="Fakturační formát (CSV)">
+                            <i data-lucide="receipt" class="w-3 h-3"></i>
+                        </button>
+                        <button onclick="downloadReport(this,'${entry.id}','all')"
+                                class="btn btn-primary" style="padding:4px 10px; font-size:11px;" title="Stáhnout vše (ZIP)">
+                            <i data-lucide="archive" class="w-3 h-3"></i>
+                        </button>
+                    </div>
+                </td>
+                <td class="text-right">
+                    <button onclick="openDeleteModal('${entry.id}')"
+                            class="btn btn-danger" style="padding:4px 10px; font-size:11px;">
+                        <i data-lucide="trash-2" class="w-3 h-3"></i>
+                    </button>
+                </td>`;
+            tbody.appendChild(tr);
+        });
+        lucide.createIcons({ nodes: [tbody] });
+    }
+
+    function openDeleteModal(id) {
+        pendingDeleteId = id;
+        document.getElementById('deleteModal').classList.remove('hidden');
+        lucide.createIcons({ nodes: [document.getElementById('deleteModal')] });
+    }
+
+    function closeDeleteModal() {
+        pendingDeleteId = null;
+        document.getElementById('deleteModal').classList.add('hidden');
+    }
+
+    async function confirmDelete() {
+        if (!pendingDeleteId) return;
+        const btn = document.getElementById('dashConfirmDeleteBtn');
+        setLoading(btn, true);
+        try {
+            const res  = await fetch(`/history/delete/${pendingDeleteId}`, { method: 'POST' });
+            const data = await res.json();
+            if (data.success) {
+                closeDeleteModal();
+                await loadData();
+            }
+        } catch (e) {
+            console.error('Chyba při mazání záznamu:', e);
+        } finally {
+            setLoading(btn, false);
+        }
+    }
+
+    async function downloadReport(btn, sessionId, fileType) {
+        const url = fileType === 'all'
+            ? `/download_all/${sessionId}`
+            : `/download/${sessionId}/${fileType}`;
+        setLoading(btn, true);
+        try {
+            const res = await fetch(url);
+            if (res.status === 404) {
+                showToast('Soubory nejsou dostupné — automaticky smazány po 24 hodinách od vytvoření.', 'error');
+                return;
+            }
+            if (!res.ok) {
+                showToast('Chyba při stahování souboru.', 'error');
+                return;
+            }
+            const blob = await res.blob();
+            const disposition = res.headers.get('Content-Disposition') || '';
+            const nameMatch = disposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+            const filename = nameMatch ? nameMatch[1].replace(/['"]/g, '') : `report_${sessionId}`;
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(a.href);
+        } catch (e) {
+            showToast('Chyba při stahování souboru.', 'error');
+            console.error(e);
+        } finally {
+            setLoading(btn, false);
+        }
+    }
+
+    function showToast(msg, type = 'info') {
+        const toast = document.createElement('div');
+        toast.className = `toast toast-${type}`;
+        toast.textContent = msg;
+        document.body.appendChild(toast);
+        setTimeout(() => {
+            toast.style.opacity = '0';
+            setTimeout(() => toast.remove(), 300);
+        }, 4000);
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        lucide.createIcons();
+        loadData();
+        document.querySelectorAll('a[href]').forEach(a => {
+            const href = a.getAttribute('href');
+            if (href && !href.startsWith('#') && !href.startsWith('javascript')) {
+                a.addEventListener('click', startNavBar);
+            }
+        });
+    });
+
+    // Close modal on backdrop click
+    document.getElementById('deleteModal').addEventListener('click', e => {
+        if (e.target === document.getElementById('deleteModal')) closeDeleteModal();
+    });
+</script>
+
+<footer style="text-align:center;padding:1rem;margin-top:2rem;font-size:.7rem;color:rgba(255,255,255,.3);border-top:1px solid rgba(255,255,255,.06);">
+    Software vytvořil <span style="color:rgba(255,255,255,.55);">Ondřej Čížek</span>
+</footer>
+</body>
+</html>
