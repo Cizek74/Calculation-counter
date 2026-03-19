@@ -7,12 +7,12 @@
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
-            theme: { extend: { fontFamily: { sans: ['"Plus Jakarta Sans"', 'system-ui', 'sans-serif'] } } }
+            theme: { extend: { fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] } } }
         }
     </script>
 
@@ -21,37 +21,41 @@
 
     <style>
         :root {
-            --accent:      #6366f1;
-            --accent-2:    #8b5cf6;
-            --accent-glow: rgba(99,102,241,0.35);
+            --accent:      #2563EB;
+            --accent-2:    #0EA5E9;
+            --accent-glow: rgba(37,99,235,0.30);
             --glass-bg:    rgba(255,255,255,0.04);
-            --glass-bdr:   rgba(255,255,255,0.08);
-            --text-hi:     rgba(255,255,255,0.90);
-            --text-md:     rgba(255,255,255,0.55);
-            --text-lo:     rgba(255,255,255,0.25);
+            --glass-bdr:   rgba(37,99,235,0.12);
+            --text-hi:     rgba(255,255,255,0.95);
+            --text-md:     rgba(255,255,255,0.58);
+            --text-lo:     rgba(255,255,255,0.28);
         }
 
         * { box-sizing: border-box; }
 
         body {
-            font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
-            background: #080b1a;
+            font-family: 'Inter', system-ui, sans-serif;
+            background: #070C1A;
             background-image:
-                radial-gradient(ellipse 60% 50% at 15% 0%,  rgba(99,102,241,.18) 0%, transparent 60%),
-                radial-gradient(ellipse 50% 40% at 85% 100%, rgba(139,92,246,.14) 0%, transparent 60%);
+                linear-gradient(rgba(37,99,235,0.04) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(37,99,235,0.04) 1px, transparent 1px),
+                radial-gradient(ellipse 80% 60% at -10% -10%, rgba(37,99,235,0.15) 0%, transparent 55%),
+                radial-gradient(ellipse 60% 50% at 110% 110%, rgba(6,182,212,0.10) 0%, transparent 55%);
+            background-size: 40px 40px, 40px 40px, 100% 100%, 100% 100%;
+            background-attachment: fixed;
             color: var(--text-hi);
             min-height: 100vh;
         }
 
         ::-webkit-scrollbar { width: 4px; height: 4px; }
         ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: rgba(99,102,241,.4); border-radius: 9999px; }
+        ::-webkit-scrollbar-thumb { background: rgba(37,99,235,.4); border-radius: 9999px; }
 
         /* ── TOP BAR ── */
         #app-topbar {
             height: 56px;
-            background: rgba(255,255,255,.03);
-            border-bottom: 1px solid rgba(255,255,255,.07);
+            background: rgba(7,12,26,.90);
+            border-bottom: 1px solid rgba(37,99,235,.10);
             display: flex;
             align-items: center;
             justify-content: space-between;
@@ -76,8 +80,8 @@
             position: relative;
             overflow: hidden;
         }
-        .sc-violet { background: linear-gradient(135deg, rgba(99,102,241,.18) 0%, rgba(139,92,246,.08) 100%); border-color: rgba(99,102,241,.22); }
-        .sc-blue   { background: linear-gradient(135deg, rgba(59,130,246,.18) 0%, rgba(99,102,241,.08) 100%); border-color: rgba(59,130,246,.22); }
+        .sc-violet { background: linear-gradient(135deg, rgba(37,99,235,.18) 0%, rgba(14,165,233,.08) 100%); border-color: rgba(37,99,235,.22); }
+        .sc-blue   { background: linear-gradient(135deg, rgba(6,182,212,.18) 0%, rgba(37,99,235,.08) 100%); border-color: rgba(6,182,212,.22); }
         .sc-green  { background: linear-gradient(135deg, rgba(16,185,129,.18) 0%, rgba(52,211,153,.08) 100%); border-color: rgba(16,185,129,.22); }
         .sc-amber  { background: linear-gradient(135deg, rgba(245,158,11,.18) 0%, rgba(251,191,36,.08) 100%); border-color: rgba(245,158,11,.22); }
 
@@ -92,7 +96,7 @@
         .btn-primary {
             background: linear-gradient(135deg, var(--accent), var(--accent-2));
             color: #fff;
-            box-shadow: 0 0 18px var(--accent-glow);
+            box-shadow: 0 0 16px var(--accent-glow), 0 0 0 1px rgba(37,99,235,0.2);
         }
         .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 4px 24px var(--accent-glow); }
         .btn-secondary {
@@ -154,10 +158,10 @@
 
         /* ── LOGO ICON ── */
         .logo-icon {
-            width: 28px; height: 28px;
-            border-radius: 8px;
+            width: 30px; height: 30px;
+            border-radius: 9px;
             background: linear-gradient(135deg, var(--accent), var(--accent-2));
-            box-shadow: 0 0 14px var(--accent-glow);
+            box-shadow: 0 0 14px var(--accent-glow), 0 0 0 1px rgba(37,99,235,0.35);
             display: flex; align-items: center; justify-content: center;
             flex-shrink: 0;
         }
@@ -165,8 +169,8 @@
         /* ── NAV PROGRESS BAR ─────────────────────────── */
         #nav-bar {
           position: fixed; top: 0; left: 0; height: 3px; width: 0;
-          background: linear-gradient(90deg, #6366f1, #8b5cf6);
-          box-shadow: 0 0 8px #6366f188;
+          background: linear-gradient(90deg, #2563EB, #0EA5E9);
+          box-shadow: 0 0 8px rgba(37,99,235,0.55);
           transition: width .4s cubic-bezier(.4,0,.2,1);
           pointer-events: none; z-index: 9999;
         }
@@ -230,12 +234,12 @@
     <!-- ── STAT CARDS ──────────────────────────────────────────────── -->
     <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8" id="statCards">
         <div class="stat-card sc-violet">
-            <div class="text-xs font-semibold uppercase tracking-wide mb-2" style="color:rgba(165,180,252,.6);">Tržby (poslední měsíc)</div>
+            <div class="text-xs font-semibold uppercase tracking-wide mb-2" style="color:rgba(147,197,253,.7);">Tržby (poslední měsíc)</div>
             <div class="text-3xl font-extrabold text-white" id="sc-revenue">—</div>
             <div class="text-xs mt-1" style="color:var(--text-lo);">Kč</div>
         </div>
         <div class="stat-card sc-blue">
-            <div class="text-xs font-semibold uppercase tracking-wide mb-2" style="color:rgba(147,197,253,.6);">Stránky (poslední měsíc)</div>
+            <div class="text-xs font-semibold uppercase tracking-wide mb-2" style="color:rgba(103,232,249,.7);">Stránky (poslední měsíc)</div>
             <div class="text-3xl font-extrabold text-white" id="sc-pages">—</div>
             <div class="text-xs mt-1" style="color:var(--text-lo);">celkem účtovaných</div>
         </div>
@@ -261,7 +265,7 @@
                     <h2 class="text-sm font-bold" style="color:var(--text-hi);">Měsíční tržby celkem</h2>
                     <p class="text-xs mt-0.5" style="color:var(--text-lo);">Kč / měsíc</p>
                 </div>
-                <i data-lucide="trending-up" class="w-4 h-4" style="color:rgba(99,102,241,.6);"></i>
+                <i data-lucide="trending-up" class="w-4 h-4" style="color:rgba(37,99,235,.7);"></i>
             </div>
             <div class="chart-wrap">
                 <canvas id="chartRevenue"></canvas>
@@ -275,7 +279,7 @@
                     <h2 class="text-sm font-bold" style="color:var(--text-hi);">Objem stránek (ČB vs Barevné)</h2>
                     <p class="text-xs mt-0.5" style="color:var(--text-lo);">počet stránek / měsíc</p>
                 </div>
-                <i data-lucide="layers" class="w-4 h-4" style="color:rgba(99,102,241,.6);"></i>
+                <i data-lucide="layers" class="w-4 h-4" style="color:rgba(37,99,235,.7);"></i>
             </div>
             <div class="chart-wrap">
                 <canvas id="chartPages"></canvas>
@@ -290,7 +294,7 @@
                 <h2 class="text-sm font-bold" style="color:var(--text-hi);">Tržby podle zákazníka</h2>
                 <p class="text-xs mt-0.5" style="color:var(--text-lo);">Kč / měsíc / zákazník</p>
             </div>
-            <i data-lucide="bar-chart-2" class="w-4 h-4" style="color:rgba(99,102,241,.6);"></i>
+            <i data-lucide="bar-chart-2" class="w-4 h-4" style="color:rgba(37,99,235,.7);"></i>
         </div>
         <div style="position:relative; height:300px;">
             <canvas id="chartCustomers"></canvas>
@@ -301,7 +305,7 @@
     <div class="glass overflow-hidden">
         <div class="flex items-center justify-between px-5 py-4" style="border-bottom:1px solid var(--glass-bdr);">
             <h2 class="text-sm font-bold" style="color:var(--text-hi);">Historie výkazů</h2>
-            <span class="text-xs px-2.5 py-1 rounded-full" style="background:rgba(99,102,241,.1); color:#a5b4fc; border:1px solid rgba(99,102,241,.2);" id="historyCount">0 záznamů</span>
+            <span class="text-xs px-2.5 py-1 rounded-full" style="background:rgba(37,99,235,.10); color:#93C5FD; border:1px solid rgba(37,99,235,.20);" id="historyCount">0 záznamů</span>
         </div>
 
         <!-- Empty state -->
@@ -377,16 +381,16 @@
     let charts = {};
 
     const CUSTOMER_COLORS = [
-        'rgba(99,102,241,.8)',   // indigo
-        'rgba(16,185,129,.8)',   // green
-        'rgba(245,158,11,.8)',   // amber
-        'rgba(239,68,68,.8)',    // red
-        'rgba(59,130,246,.8)',   // blue
-        'rgba(139,92,246,.8)',   // violet
-        'rgba(236,72,153,.8)',   // pink
-        'rgba(20,184,166,.8)',   // teal
-        'rgba(249,115,22,.8)',   // orange
-        'rgba(132,204,22,.8)',   // lime
+        'rgba(37,99,235,.85)',    // blue
+        'rgba(16,185,129,.85)',   // green
+        'rgba(245,158,11,.85)',   // amber
+        'rgba(239,68,68,.85)',    // red
+        'rgba(6,182,212,.85)',    // cyan
+        'rgba(139,92,246,.85)',   // violet
+        'rgba(236,72,153,.85)',   // pink
+        'rgba(20,184,166,.85)',   // teal
+        'rgba(249,115,22,.85)',   // orange
+        'rgba(132,204,22,.85)',   // lime
     ];
 
     const CHART_DEFAULTS = {
@@ -396,13 +400,13 @@
             legend: {
                 labels: {
                     color: 'rgba(255,255,255,0.55)',
-                    font: { family: "'Plus Jakarta Sans', system-ui", size: 11 },
+                    font: { family: "'Inter', system-ui", size: 11 },
                     boxWidth: 10, boxHeight: 10, padding: 14,
                 }
             },
             tooltip: {
-                backgroundColor: 'rgba(8,11,26,0.95)',
-                borderColor: 'rgba(255,255,255,0.1)',
+                backgroundColor: 'rgba(7,12,26,0.97)',
+                borderColor: 'rgba(37,99,235,0.20)',
                 borderWidth: 1,
                 titleColor: 'rgba(255,255,255,0.9)',
                 bodyColor: 'rgba(255,255,255,0.6)',
@@ -460,10 +464,10 @@
                 datasets: [{
                     label: 'Tržby (Kč)',
                     data: revenueData,
-                    borderColor: '#6366f1',
-                    backgroundColor: 'rgba(99,102,241,0.12)',
+                    borderColor: '#2563EB',
+                    backgroundColor: 'rgba(37,99,235,0.12)',
                     borderWidth: 2,
-                    pointBackgroundColor: '#6366f1',
+                    pointBackgroundColor: '#2563EB',
                     pointRadius: 4,
                     fill: true,
                     tension: 0.35,
@@ -488,7 +492,7 @@
                     {
                         label: 'ČB stránky',
                         data: historyData.map(e => e.total_bw_pages),
-                        backgroundColor: 'rgba(99,102,241,0.7)',
+                        backgroundColor: 'rgba(37,99,235,0.80)',
                         borderRadius: 4,
                         stack: 'pages',
                     },
@@ -579,7 +583,7 @@
                 <td>
                     <div class="flex items-center gap-1">
                         <button onclick="exportDashboardSummary(this,'${entry.id}')"
-                                class="btn btn-primary" style="padding:4px 8px; font-size:11px; background:linear-gradient(135deg,#8b5cf6,#d946ef);" title="Stáhnout měsíční manažerské shrnutí">
+                                class="btn btn-primary" style="padding:4px 8px; font-size:11px; background:linear-gradient(135deg,#7c3aed,#c026d3);" title="Stáhnout měsíční manažerské shrnutí">
                             <i data-lucide="file-bar-chart" class="w-3.5 h-3.5"></i>
                         </button>
                         <div class="w-px h-4 mx-1" style="background:var(--glass-bdr);"></div>

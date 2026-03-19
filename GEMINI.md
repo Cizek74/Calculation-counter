@@ -52,16 +52,31 @@ A Flask-based web application designed to process printer system CSV exports. It
 | Module | Purpose |
 | :--- | :--- |
 | `app.py` | Entry point, routing, auth logic, session management, and history. |
-| `calculator.py` | Core logic for parsing CSVs and calculating billable pages. |
+| `calculator.py` | Core logic for parsing CSVs and calculating billable pages. Supports dynamic column mapping. |
 | `contracts.py` | Management of printer contracts (loaded from `contracts.csv`). |
-| `reports.py` | Generation of CSV outputs and ReportLab PDF documents. |
+| `reports.py` | Generation of CSV outputs, detailed PDF reports, and Executive Summary PDFs. |
 | `pdf_fonts.py` | Registration of fonts for PDF generation. |
 
 ### Data Storage
-- **Users:** `users.db` (SQLite).
+- **Users, History, Sessions, Mappings:** `users.db` (SQLite).
 - **Contracts:** `contracts.csv` (Manual entry, primary key: Serial Number).
-- **History:** `history.json` (Dashboard persistence).
 - **Files:** `uploads/` (temp) and `processed/` (output, auto-deleted after 24h).
+
+## Key Features & Logic
+
+1. **Unified Persistence (SQLite):**
+   - All session data and dashboard history are stored in SQLite (`users.db`).
+   - In-memory data is minimal; the app survives restarts without losing uploaded data or history.
+   - Automatic migration from `history.json` to DB is performed on startup.
+
+2. **Dynamic Column Mapping:**
+   - If a CSV is uploaded with non-standard headers, the app triggers a "Mapping Required" flow.
+   - Users can map their CSV columns to expected fields (e.g., "S/N" -> "Serial Number").
+   - Mapping profiles can be saved and reused for different printer export formats.
+
+3. **Dashboard & Executive Export:**
+   - The dashboard tracks revenue and page volume trends over time.
+   - **Executive Summary:** A professional, dark-themed PDF export is available for each historical month, summarizing performance and revenue per customer.
 
 ## Development Conventions
 
